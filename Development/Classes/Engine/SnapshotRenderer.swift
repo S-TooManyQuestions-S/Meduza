@@ -13,7 +13,6 @@ import UIKit
 struct SnapshotRendererContext {
     
     struct ViewController {
-        // Тема приложения, в которой необходимо отрисовать представление.
         let interfaceStyle: UIUserInterfaceStyle
         let backgroundColor: UIColor
         let ignoreSafeArea: Bool
@@ -21,13 +20,9 @@ struct SnapshotRendererContext {
     }
     
     struct View {
-        
         let interfaceStyle: UIUserInterfaceStyle
-        // Высота представления (выставляется как констрейнт), при отсутствии - рассчитывается с помощью `autoLayout`-механизма.
         let height: CGFloat?
-        // Ширина представения (выставляется как констрейнт), при отсутствии - рассчитывается с помощью `autoLayout`-мехнизма.
         let widthResolutionStrategy: WidthResolutionStrategy?
-        
         let backgroundColor: UIColor
         let window: UIWindow
     }
@@ -67,13 +62,13 @@ enum SnapshotRendererError: LocalizedError {
     }
 }
 
-
 // MARK: - Implementation
 
 /// Статический класс без зависимостей для отрисовки различных представлений
 final class SnapshotRenderer {
     
     // MARK: - Initialization
+
     // Экземпляр класса создавать нельзя
     private init() {}
 
@@ -124,10 +119,11 @@ final class SnapshotRenderer {
         view.layoutIfNeeded()
         
         // Процесс ренедеринга представления - в рамках самого представления
-        let graphicRenderer = UIGraphicsImageRenderer(bounds: view.bounds)
-        let image = graphicRenderer.image { context in
-            view.layer.render(in: context.cgContext)
-        }
+        let image = renderView(
+            view,
+            in: context.window
+        )
+
         // Удаление представление с экрана
         view.removeFromSuperview()
         
@@ -171,10 +167,8 @@ final class SnapshotRenderer {
         collectionView.layoutIfNeeded()
         
         // Процесс ренедеринга представления - в рамках самого представления
-        let graphicRenderer = UIGraphicsImageRenderer(bounds: collectionView.bounds)
-        let image = graphicRenderer.image { _ in
-            collectionView.drawHierarchy(in: collectionView.bounds, afterScreenUpdates: true)
-        }
+        let image = renderCollectionView(collectionView, in: context.window)
+        
         // Удаление представление с экрана
         collectionView.removeFromSuperview()
         
@@ -184,7 +178,7 @@ final class SnapshotRenderer {
         return image
     }
     
-    /// Метод для отрисовки `ViewСontroller`-представления
+    /// Метод для отрисовки `ViewController`-представления
     ///
     /// - Parameters:
     ///   - viewController: Представление для отрисовки.
@@ -257,7 +251,7 @@ final class SnapshotRenderer {
         navigationViewController.view.layoutIfNeeded()
         
         // Процесс рендеринга представления - в рамках всего экрана
-        let renderedImage = renderNavigationBar(navigationViewController.navigationBar)
+        let renderedImage = renderNavigationBar(navigationViewController.navigationBar, in: context.window)
         
         // Удаление представления с экрана
         navigationViewController.view.removeFromSuperview()
@@ -343,6 +337,17 @@ final class SnapshotRenderer {
     }
     
     // MARK: - Private
+    
+    @inline(__always)
+    private static func renderView(
+        _ view: UIView,
+        in window: UIWindow
+    ) -> UIImage {
+        let graphicRenderer = UIGraphicsImageRenderer(bounds: view.bounds)
+        return graphicRenderer.image { context in
+            window.layer.render(in: context.cgContext)
+        }
+    }
 
     @inline(__always)
     private static func renderContentView(
@@ -359,7 +364,7 @@ final class SnapshotRenderer {
                 x: -safeAreaInsets.left,
                 y: -safeAreaInsets.top
             )
-            view?.layer.render(in: context.cgContext)
+            window.layer.render(in: context.cgContext)
         }
     }
     
@@ -373,20 +378,31 @@ final class SnapshotRenderer {
         
         let graphicRenderer = UIGraphicsImageRenderer(bounds: contentRect)
         return graphicRenderer.image { context in
-            view?.layer.render(in: context.cgContext)
+            window.layer.render(in: context.cgContext)
         }
     }
     
     @inline(__always)
     private static func renderNavigationBar(
-        _ navigationBar: UINavigationBar
+        _ navigationBar: UINavigationBar,
+        in window: UIWindow
     ) -> UIImage {
         let contentSize = navigationBar.bounds.size
         
         let graphicRenderer = UIGraphicsImageRenderer(size: contentSize)
         return graphicRenderer.image { context in
-            navigationBar.layer.render(in: context.cgContext)
+            window.layer.render(in: context.cgContext)
+        }
+    }
+    
+    @inline(__always)
+    private static func renderCollectionView(
+        _ collectionView: UICollectionView,
+        in window: UIWindow
+    ) -> UIImage {
+        let graphicRenderer = UIGraphicsImageRenderer(bounds: collectionView.bounds)
+        return graphicRenderer.image { context in
+            window.layer.render(in: context.cgContext)
         }
     }
 }
-

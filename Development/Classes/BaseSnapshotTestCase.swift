@@ -60,6 +60,8 @@ open class BaseSnapshotTestCase: XCTestCase {
     
     open override func tearDownWithError() throws {
         try window().rootViewController = UIViewController()
+
+        super.tearDownWithError()
     }
     
     // MARK: - Public API
@@ -102,7 +104,6 @@ open class BaseSnapshotTestCase: XCTestCase {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
     }
-    
     
     open func verifyView(
         _ view: UIView,
@@ -218,7 +219,6 @@ open class BaseSnapshotTestCase: XCTestCase {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
     }
-    
 }
 
 // MARK: - Private
@@ -255,5 +255,3 @@ private extension BaseSnapshotTestCase {
         )
     }
 }
-
-

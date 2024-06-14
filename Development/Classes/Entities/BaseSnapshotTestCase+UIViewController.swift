@@ -1,5 +1,5 @@
 //
-//  BaseSnapshotTestCase+UICollectionView.swift
+//  BaseSnapshotTestCase+UIViewController.swift
 //  Meduza
 //
 //  Created by Samarenko Andrey on 12.06.2024.
@@ -7,17 +7,17 @@
 
 import UIKit
 
-// MARK: - BaseSnapshotTestCase + UICollectionView
+// MARK: - BaseSnapshotTestCase + UIViewController
 
 extension BaseSnapshotTestCase {
     
     func record(
-        _ view: UICollectionView,
-        renderContext: SnapshotRendererContext.CollectionView,
+        _ viewController: UIViewController,
+        renderContext: SnapshotRendererContext.ViewController,
         using metaInfo: SnapshotTestCaseMetaInfo
     ) throws {
-        let snapshot = SnapshotRenderer.image(
-            view,
+        let snapshot = try SnapshotRenderer.image(
+            viewController,
             using: renderContext
         )
         
@@ -31,11 +31,11 @@ extension BaseSnapshotTestCase {
     }
     
     func verify(
-        _ view: UICollectionView,
-        renderContext: SnapshotRendererContext.CollectionView,
+        _ viewController: UIViewController,
+        renderContext: SnapshotRendererContext.ViewController,
         using metaInfo: SnapshotTestCaseMetaInfo
     ) throws {
-        let renderedImage = SnapshotRenderer.image(view, using: renderContext)
+        let renderedImage = try SnapshotRenderer.image(viewController, using: renderContext)
         let recordedImage = try SnapshotFileManager.load(for: metaInfo)
         
         try compare(
@@ -45,4 +45,3 @@ extension BaseSnapshotTestCase {
         )
     }
 }
-

@@ -9,7 +9,7 @@ import XCTest
 
 private extension String {
     // Error prefixes
-    static let errorPrefix: String =           "⛔️ [SNAPSHOT_TEST_EXECUTION_ERROR] ⛔️"
+    static let errorPrefix: String = "⛔️ [SNAPSHOT_TEST_EXECUTION_ERROR] ⛔️"
     static let errorComparisonPrefix: String = "⚠️ [SNAPSHOT_COMPARISON_FAIL] ⚠️"
     static let errorRecordModePrefix: String = "✅ [RECORD_MODE_ON] ✅"
     // Attachment names
@@ -27,6 +27,7 @@ enum ErrorType {
 final class SnapshotLogger {
     
     // MARK: - Initialization
+
     // Экземпляр класса создавать нельзя
     private init() {}
 
@@ -78,4 +79,3 @@ extension String {
         return SnapshotLogger.format(self, errorType: errorType)
     }
 }
-

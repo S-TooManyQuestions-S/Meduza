@@ -97,6 +97,7 @@ enum SnapshotFileManagerError: LocalizedError {
 final class SnapshotFileManager {
     
     // MARK: - Initialization
+
     // Экземпляр класса создавать нельзя
     private init() {}
     
@@ -272,4 +273,3 @@ final class SnapshotFileManager {
         return validatedFileName
     }
 }
-

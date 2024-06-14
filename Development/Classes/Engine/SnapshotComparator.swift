@@ -43,6 +43,7 @@ enum ImagesComparingError: LocalizedError {
 final class SnapshotComparator {
     
     // MARK: - Initialization
+
     // Экземпляр класса создавать нельзя
     private init() {}
 
@@ -213,4 +214,3 @@ final class SnapshotComparator {
         return lhs.width == rhs.width && lhs.height == rhs.height
     }
 }
-
