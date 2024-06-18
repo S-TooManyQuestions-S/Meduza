@@ -32,65 +32,6 @@ private extension CharacterSet {
     }()
 }
 
-// MARK: - DTO
-
-enum SnapshotType {
-    /// Типы изобаржений при прохождении теста / записи снепшотов
-    case reference          // записанное изображение
-    
-    /// Типы изображений при падении теста
-    case failedReference    // изображение, с которым производится сравнение в тесте
-    case failedTest         // изображение, полученное в результате теста
-    case failedDiff         // разница между изображениями
-}
-
-// Мета-информация для формирования полного пути к снепшот-файлу
-struct SnapshotTestCaseMetaInfo {
-    // Дополнительный идентификатор тест-кейса
-    let identifier: String?
-    // Корневая директория проекта
-    let rootPath: String
-    // Тест-класс, в котором выполняется снэпшот-тестирование
-    let testClass: AnyClass
-    // Метод, который инициировал вызов assert'a
-    let invocationSelector: Selector
-    // Масштаб экрана
-    let screenScale: CGFloat
-    // Стиль интерфейса
-    let interfaceStyle: UIUserInterfaceStyle
-    // Максимальная допустимая разница в процентном соотношении ( на один пиксель )
-    let pixelTolerance: CGFloat
-    // Максимальная допустимая разница в процентном соотношении ( на bit-map представление )
-    let overallTolerance: CGFloat
-}
-
-// MARK: - Errors
-
-enum SnapshotFileManagerError: LocalizedError {
-    
-    case unableToCreatePNGData(filePath: String)
-    case noRecordAvailable(filePath: String)
-    case unableToLoadImage(filePath: String)
-    case unknownUserInterfaceStyle
-    
-    var errorDescription: String? {
-        
-        let descriptionSummary: String
-        switch self {
-        case .unableToCreatePNGData(let filePath):
-            descriptionSummary = "UIImage.pngData() function has returned error for path: \(filePath)."
-        case .noRecordAvailable(let filePath):
-            descriptionSummary = "No recorded snapshot found for path: \(filePath)."
-        case .unableToLoadImage(let filePath):
-            descriptionSummary = "UIImage(contentsOfFile:) function has returned error for path: \(filePath)."
-        case .unknownUserInterfaceStyle:
-            descriptionSummary = "Unknown UIUserInterfaceStyle."
-        }
-        
-        return descriptionSummary.format(as: .executionError)
-    }
-}
-
 // MARK: - Implementation
 
 /// Статический класс без зависимостей для работы с файловой системой
@@ -104,7 +45,8 @@ final class SnapshotFileManager {
     // MARK: - Internal
     
     static func load(
-        for metaInfo: SnapshotTestCaseMetaInfo
+        for metaInfo: SnapshotMetaInfo,
+        _ renderContext: SnapshotRenderContext
     ) throws -> UIImage {
         let type = SnapshotType.reference
         
@@ -117,7 +59,8 @@ final class SnapshotFileManager {
         let filePath = try filePath(
             for: folderPath,
             snapshotType: type,
-            metaInfo: metaInfo
+            metaInfo: metaInfo,
+            renderContext: renderContext
         )
         
         let filePathString = filePath.path
@@ -135,8 +78,9 @@ final class SnapshotFileManager {
     static func save(
         snapshot: UIImage,
         with type: SnapshotType,
-        metaInfo: SnapshotTestCaseMetaInfo
-    ) throws -> String {
+        _ renderContext: SnapshotRenderContext,
+        _ metaInfo: SnapshotMetaInfo
+    ) throws {
         let folderPath = folderPath(
             for: type,
             metaInfo.testClass,
@@ -151,7 +95,8 @@ final class SnapshotFileManager {
         let filePath = try filePath(
             for: folderPath,
             snapshotType: type,
-            metaInfo: metaInfo
+            metaInfo: metaInfo,
+            renderContext: renderContext
         )
         
         guard let pngData = snapshot.pngData() else {
@@ -163,7 +108,7 @@ final class SnapshotFileManager {
             options: .atomic
         )
         
-        return filePath.path
+        SnapshotLogger.log(message: "Snapshot successfully saved! Path: \(filePath.path)", .info)
     }
     
     // MARK: - Private
@@ -171,14 +116,15 @@ final class SnapshotFileManager {
     private static func filePath(
         for folderPath: URL,
         snapshotType: SnapshotType,
-        metaInfo: SnapshotTestCaseMetaInfo
+        metaInfo: SnapshotMetaInfo,
+        renderContext: SnapshotRenderContext
     ) throws -> URL {
         let fileName = try fileName(
             for: snapshotType,
             metaInfo.identifier,
-            metaInfo.invocationSelector,
+            metaInfo.selectorDescription,
             metaInfo.screenScale,
-            metaInfo.interfaceStyle
+            renderContext.interfaceStyle
         )
         
         return folderPath
@@ -223,9 +169,9 @@ final class SnapshotFileManager {
     private static func fileName(
         for snapshotType: SnapshotType,
         _ identifier: String?,
-        _ invocationSelector: Selector,
+        _ invocationSelectorDescription: String,
         _ screenScale: CGFloat,
-        _ userInterfaceStyle: UIUserInterfaceStyle
+        _ userInferfaceStyle: UIUserInterfaceStyle
     ) throws -> String {
         // Префикс файла в зависимости от типа снэпшота
         var rawFileName: String
@@ -237,8 +183,7 @@ final class SnapshotFileManager {
         }
         
         // Наименование метода тест-кейса
-        let methodName = invocationSelector.description
-        rawFileName.append(methodName)
+        rawFileName.append(invocationSelectorDescription)
         
         if let identifier,
            !identifier.isEmpty {
@@ -248,7 +193,7 @@ final class SnapshotFileManager {
         
         // Наименование темы, в которой сделан снепшот
         let userInterfaceRawValue: String?
-        switch userInterfaceStyle {
+        switch userInferfaceStyle {
         case .light:
             userInterfaceRawValue = nil
         case .dark:

@@ -12,6 +12,12 @@ private extension String {
     static let errorPrefix: String = "⛔️ [SNAPSHOT_TEST_EXECUTION_ERROR] ⛔️"
     static let errorComparisonPrefix: String = "⚠️ [SNAPSHOT_COMPARISON_FAIL] ⚠️"
     static let errorRecordModePrefix: String = "✅ [RECORD_MODE_ON] ✅"
+    
+    // Debug description
+    static let infoPrefix: String = "🔬 [INFO] 🔬"
+    static let warnPrefix: String = "☢️ [WARN] ☢️"
+    static let deinitPrefix: String = "♻️ [CLEANED] ♻️"
+    
     // Attachment names
     static let referenceAttachment: String = "Reference Image"
     static let renderedAttachment: String = "Rendered Image"
@@ -24,7 +30,22 @@ enum ErrorType {
     case recordModeError
 }
 
+enum LogType {
+    case warning
+    case info
+    case `deinit`
+}
+
 final class SnapshotLogger {
+    
+    // Private
+    private static var debugMode: Bool {
+        guard let rawDebugMode = ProcessInfo.processInfo.environment["DEBUG_MODE"],
+              let debugMode = Bool(rawDebugMode)
+        else { return true } // исправить
+        
+        return debugMode
+    }
     
     // MARK: - Initialization
 
@@ -32,6 +53,29 @@ final class SnapshotLogger {
     private init() {}
 
     // MARK: - Internal
+    
+    static func log(
+        message: String,
+        _ type: LogType
+    ) {
+        guard debugMode else { return }
+        
+        let prefix: String
+        switch type {
+        case .info: prefix = String.infoPrefix
+        case .warning: prefix = String.warnPrefix
+        case .deinit: prefix = String.deinitPrefix
+        }
+        
+        NSLog("\(prefix) \(message)")
+    }
+    
+    static func perform(
+        completion: @escaping () throws -> Void
+    ) throws {
+        guard debugMode else { return }
+        try completion()
+    }
     
     static func format(
         _ errorLocalizedDescription: String,
@@ -47,7 +91,7 @@ final class SnapshotLogger {
             descriptionMark = String.errorRecordModePrefix
         }
         
-        return "\n\(descriptionMark)\n\(errorLocalizedDescription)\n\(descriptionMark)\n"
+        return "\(descriptionMark) \(errorLocalizedDescription)"
     }
     
     static func logFailedComparison(

@@ -8,35 +8,6 @@
 import CoreGraphics
 import UIKit
 
-// MARK: - Errors
-
-enum ImagesComparingError: LocalizedError {
-    
-    case unableToCreateCGImages
-    case unableToExtractColorSpace
-    case unableToCreateContexts
-    case unableToBoundMemory
-    case imagesOfDifferentSize(lhs: CGSize, rhs: CGSize)
-    
-    var errorDescription: String? {
-        let descriptionSummary: String
-        switch self {
-        case .unableToCreateCGImages:
-            descriptionSummary = "UIImage.cgImage property returned nil."
-        case .unableToExtractColorSpace:
-            descriptionSummary = "UIImage.colorSpace property returned nil."
-        case .unableToCreateContexts:
-            descriptionSummary = "Attempt to create CGContext from images meta-info has failed."
-        case .unableToBoundMemory:
-            descriptionSummary = "Attempt to bound memory to iterate over bitmap has failed."
-        case .imagesOfDifferentSize(let lhs, let rhs):
-            descriptionSummary = "Attempt to compare images of different size: {\(lhs.height); \(lhs.width)}, {\(rhs.height); \(rhs.width)}."
-        }
-       
-        return descriptionSummary.format(as: .executionError)
-    }
-}
-
 // MARK: - Implementation
 
 /// Статический класс без зависимостей для сравнения снепшотов
@@ -56,13 +27,19 @@ final class SnapshotComparator {
         pixelTolerance: CGFloat,
         overallTolerance: CGFloat
     ) throws -> Bool {
-        guard let referenceCGImage = referenceImage.cgImage,
-              let actualCGImage = actualImage.cgImage
-        else { throw ImagesComparingError.unableToCreateCGImages }
+        defer { SnapshotLogger.log(
+            message: "Compared:\nReference image { size: \(referenceImage.size), scale: \(referenceImage.scale) }"
+            + "\nActual image { size: \(actualImage.size), scale: \(actualImage.scale) }",
+            .info)
+        }
+        
+        guard let referenceCGImage = referenceImage.cgImage else { throw SnapshotComparatorError.unableToCreateCGImages("reference image") }
+        guard let actualCGImage = actualImage.cgImage else { throw SnapshotComparatorError.unableToCreateCGImages("actual image") }
+        
         
         // Работа осуществляется с картинками одного размера
         guard assertSize(referenceCGImage, actualCGImage) else {
-            throw ImagesComparingError.imagesOfDifferentSize(lhs: referenceImage.size, rhs: actualImage.size)
+            throw SnapshotComparatorError.imagesOfDifferentSize(lhs: referenceImage.size, rhs: actualImage.size)
         }
         
         // Берем минимум, чтобы лишний раз обезопасить себя от выхода за пределы памяти, выделенной
@@ -84,13 +61,14 @@ final class SnapshotComparator {
         guard
             let referenceCGImageColorSpace = referenceCGImage.colorSpace,
             let actualCGImageColorSpace = actualCGImage.colorSpace
-        else { throw ImagesComparingError.unableToExtractColorSpace }
+        else { throw SnapshotComparatorError.unableToExtractColorSpace }
         
         // Функция для releaseCallBack'a контекста - необходимости принудительно освобождать контекст при использовании ARC нет
         func releaseDataCallback(
             info: UnsafeMutableRawPointer?,
             data: UnsafeMutableRawPointer?
         ) {
+            SnapshotLogger.log(message: "Function `releaseDataCallback` was called.", .deinit)
             free(info)
         }
         
@@ -121,7 +99,7 @@ final class SnapshotComparator {
                 releaseCallback: releaseDataCallback,
                 releaseInfo: ptrActualImagePixels
             )
-        else { throw ImagesComparingError.unableToCreateContexts }
+        else { throw SnapshotComparatorError.unableToCreateContexts }
         
         referenceImageContext.draw(referenceCGImage, in: CGRect(x: 0, y: 0, width: referenceCGImage.width, height: referenceCGImage.height))
         actualImageContext.draw(actualCGImage, in: CGRect(x: 0, y: 0, width: actualCGImage.width, height: actualCGImage.height))
@@ -130,7 +108,7 @@ final class SnapshotComparator {
         guard
             let ptr_referenceImage = ptrReferenceImagePixels?.bindMemory(to: UInt8.self, capacity: 1),
             let ptr_actualimage = ptrActualImagePixels?.bindMemory(to: UInt8.self, capacity: 1)
-        else { throw ImagesComparingError.unableToBoundMemory }
+        else { throw SnapshotComparatorError.unableToBoundMemory }
         
         let pixelCount: Int = referenceCGImage.height * referenceCGImage.width
         
