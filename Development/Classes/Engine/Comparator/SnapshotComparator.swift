@@ -36,10 +36,9 @@ final class SnapshotComparator {
         guard let referenceCGImage = referenceImage.cgImage else { throw SnapshotComparatorError.unableToCreateCGImages("reference image") }
         guard let actualCGImage = actualImage.cgImage else { throw SnapshotComparatorError.unableToCreateCGImages("actual image") }
         
-        
         // Работа осуществляется с картинками одного размера
         guard assertSize(referenceCGImage, actualCGImage) else {
-            throw SnapshotComparatorError.imagesOfDifferentSize(lhs: referenceImage.size, rhs: actualImage.size)
+            return false
         }
         
         // Берем минимум, чтобы лишний раз обезопасить себя от выхода за пределы памяти, выделенной

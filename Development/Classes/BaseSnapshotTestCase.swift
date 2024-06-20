@@ -30,21 +30,27 @@ enum SnapshotBaseError: LocalizedError {
     }
 }
 
+final class SnapshotWindow: UIWindow {
+    
+    var customSafeAreaInsets: UIEdgeInsets = .zero
+    
+    override var safeAreaInsets: UIEdgeInsets {
+        return customSafeAreaInsets
+    }
+}
+
 open class BaseSnapshotTestCase: XCTestCase {
     
     // Dependencies
     private var metaInfoProvider: MetaInfoProvider!
     
     // Private
-    private var window: UIWindow {
-        if let appHostWindow = UIApplication.shared.windows.first {
-            SnapshotLogger.log(message: "AppHost window found!", .info)
-            return appHostWindow
-        } else {
-            SnapshotLogger.log(message: "AppHost window not found. New UIWindow instance will be used!", .warning)
-            return UIWindow()
-        }
-    }
+    private var window: UIWindow = {
+        let window = SnapshotWindow()
+        window.rootViewController = UIViewController()
+        window.makeKeyAndVisible()
+        return window
+    }()
     
     // State
     open var recordMode: Bool = false

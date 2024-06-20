@@ -34,7 +34,8 @@ final class SnapshotRenderer {
         _ collectionView: UICollectionView,
         in window: UIWindow
     ) -> UIImage {
-        let graphicRenderer = UIGraphicsImageRenderer(bounds: collectionView.bounds)
+        let size = collectionView.collectionViewLayout.collectionViewContentSize
+        let graphicRenderer = UIGraphicsImageRenderer(size: size)
         return graphicRenderer.image { context in
             window.layer.render(in: context.cgContext)
         }

@@ -18,7 +18,6 @@ public enum WidthResolutionStrategy {
     case none
 }
 
-
 // MARK: - BaseSnapshotTestCase + UIView
 
 final class ViewSnapshot: Snapshot {
@@ -86,7 +85,7 @@ final class ViewSnapshot: Snapshot {
                 using: metaInfo,
                 renderContext
             )
-            
+            SnapshotLogger.log(message: "Test for style: \(renderContext.interfaceStyle.rawValue == 1 ? "light" : "dark") returned value: \(isSuccessFull)", .info)
             return !isSuccessFull
         }.isEmpty
     }
@@ -100,6 +99,11 @@ final class ViewSnapshot: Snapshot {
         
         // Выключаем ненужную функциональность во избежание конфликтующих констрейнтов
         view.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            view.topAnchor.constraint(equalTo: window.topAnchor),
+            view.leftAnchor.constraint(equalTo: window.leftAnchor)
+        ])
         
         // Активация констрейнтов если размеры заданы в ручную
         if let customHeight = constraintContext.height {
