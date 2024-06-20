@@ -12,9 +12,7 @@ import XCTest
 enum SnapshotBaseError: LocalizedError {
     
     case keyWindowNotFound
-    case sourceRootNotFound
-    case invocationSelectorNotFound
-    case ranInRecordMode(recordedPath: String)
+    case ranInRecordMode
     case comparisonError
     
     var errorDescription: String? {
@@ -22,14 +20,8 @@ enum SnapshotBaseError: LocalizedError {
         case .keyWindowNotFound:
             return String("`UIApplication.shared.windows.first` not found.")
                 .format(as: .executionError)
-        case .sourceRootNotFound:
-            return String("`SOURCE_ROOT`-key not found in environment variables of your test-scheme.")
-                .format(as: .executionError)
-        case .invocationSelectorNotFound:
-            return String("Variable `self.invocation.selector` getter returned nil.")
-                .format(as: .executionError)
-        case .ranInRecordMode(let recordedPath):
-            return String("Test ran in record mode. Image is now saved via path:\n\(recordedPath).")
+        case .ranInRecordMode:
+            return String("Test ran in record mode. Image is now saved.")
                 .format(as: .recordModeError)
         case .comparisonError:
             return String("Images are different.")
@@ -38,30 +30,43 @@ enum SnapshotBaseError: LocalizedError {
     }
 }
 
-public enum WidthResolutionStrategy {
-    case aspectFit(value: CGFloat)
-    case aspectFill(value: CGFloat)
+final class SnapshotWindow: UIWindow {
+    
+    var customSafeAreaInsets: UIEdgeInsets = .zero
+    
+    override var safeAreaInsets: UIEdgeInsets {
+        return customSafeAreaInsets
+    }
 }
 
 open class BaseSnapshotTestCase: XCTestCase {
     
+    // Dependencies
+    private var metaInfoProvider: MetaInfoProvider!
+    
+    // Private
+    private var window: UIWindow = {
+        let window = SnapshotWindow()
+        window.rootViewController = UIViewController()
+        window.makeKeyAndVisible()
+        return window
+    }()
+    
     // State
     open var recordMode: Bool = false
     
-    // Window
-    func window() throws -> UIWindow {
-        guard let window = UIApplication.shared.windows.first else {
-            throw SnapshotBaseError.keyWindowNotFound
-        }
-        return window
-    }
-    
     // MARK: - XCTestCase
     
-    open override func tearDownWithError() throws {
-        try window().rootViewController = UIViewController()
+    open override func setUp() {
+        super.setUp()
+        
+        metaInfoProvider = MetaInfoProvider(for: self)
+    }
+    
+    open override func tearDown() {
+        metaInfoProvider = nil
 
-        super.tearDownWithError()
+        super.tearDown()
     }
     
     // MARK: - Public API
@@ -78,28 +83,18 @@ open class BaseSnapshotTestCase: XCTestCase {
         line: UInt = #line
     ) {
         do {
-            for interfaceStyle in interfaceStyles {
-                let metaInfo = try metaInfo(
-                    identifier: identifier,
-                    with: interfaceStyle,
-                    pixelTolerance: pixelToleracne,
-                    overallTolerance: overallTolerance
-                )
-                
-                let window = try window()
-                let context = SnapshotRendererContext.ViewController(
-                    interfaceStyle: interfaceStyle,
-                    backgroundColor: backgroundColor,
-                    ignoreSafeArea: ignoreSafeArea,
-                    window: window
-                )
-                
-                if recordMode {
-                    try record(viewController, renderContext: context, using: metaInfo)
-                } else {
-                    try verify(viewController, renderContext: context, using: metaInfo)
-                }
-            }
+            // given
+            let metaInfo = try metaInfoProvider.makeMetaInfo(
+                identifier: identifier,
+                pixelTolerance: pixelToleracne,
+                overallTolerance: overallTolerance,
+                screenScale: window.screen.scale
+            )
+            
+            let snapshot = ViewControllerSnapshot(with: viewController, in: window)
+            let contexts = interfaceStyles.map { SnapshotRenderContext(interfaceStyle: $0, backgroundColor: backgroundColor, ignoreSafeArea: ignoreSafeArea) }
+            
+            try verify(snapshot, in: contexts, using: metaInfo)
         } catch {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
@@ -112,35 +107,25 @@ open class BaseSnapshotTestCase: XCTestCase {
         overallTolerance: CGFloat,
         interfaceStyles: Set<UIUserInterfaceStyle>,
         height: CGFloat? = nil,
-        widthStrategy: WidthResolutionStrategy? = nil,
+        widthStrategy: WidthResolutionStrategy = .none,
         backgroundColor: UIColor,
         file: StaticString = #file,
         line: UInt = #line
     ) {
         do {
-            for interfaceStyle in interfaceStyles {
-                let metaInfo = try metaInfo(
-                    identifier: identifier,
-                    with: interfaceStyle,
-                    pixelTolerance: pixelToleracne,
-                    overallTolerance: overallTolerance
-                )
-                
-                let window = try window()
-                let context = SnapshotRendererContext.View(
-                    interfaceStyle: interfaceStyle,
-                    height: height,
-                    widthResolutionStrategy: widthStrategy,
-                    backgroundColor: backgroundColor,
-                    window: window
-                )
-                
-                if recordMode {
-                    try record(view, renderContext: context, using: metaInfo)
-                } else {
-                    try verify(view, renderContext: context, using: metaInfo)
-                }
-            }
+            // given
+            let metaInfo = try metaInfoProvider.makeMetaInfo(
+                identifier: identifier,
+                pixelTolerance: pixelToleracne,
+                overallTolerance: overallTolerance,
+                screenScale: window.screen.scale
+            )
+            let constraintContext = SnapshotConstraintContext(height: height, widthResolution: widthStrategy)
+            
+            let snapshot = ViewSnapshot(with: view, in: window, using: constraintContext)
+            let contexts = interfaceStyles.map { SnapshotRenderContext(interfaceStyle: $0, backgroundColor: backgroundColor) }
+            
+            try verify(snapshot, in: contexts, using: metaInfo)
         } catch {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
@@ -157,27 +142,18 @@ open class BaseSnapshotTestCase: XCTestCase {
         line: UInt = #line
     ) {
         do {
-            for interfaceStyle in interfaceStyles {
-                let metaInfo = try metaInfo(
-                    identifier: identifier,
-                    with: interfaceStyle,
-                    pixelTolerance: pixelToleracne,
-                    overallTolerance: overallTolerance
-                )
-                
-                let window = try window()
-                let context = SnapshotRendererContext.CollectionView(
-                    interfaceStyle: interfaceStyle,
-                    backgroundColor: backgroundColor,
-                    window: window
-                )
-                
-                if recordMode {
-                    try record(collectionView, renderContext: context, using: metaInfo)
-                } else {
-                    try verify(collectionView, renderContext: context, using: metaInfo)
-                }
-            }
+            // given
+            let metaInfo = try metaInfoProvider.makeMetaInfo(
+                identifier: identifier,
+                pixelTolerance: pixelToleracne,
+                overallTolerance: overallTolerance,
+                screenScale: window.screen.scale
+            )
+            
+            let snapshot = CollectionViewSnapshot(with: collectionView, in: window)
+            let contexts = interfaceStyles.map { SnapshotRenderContext(interfaceStyle: $0, backgroundColor: backgroundColor) }
+            
+            try verify(snapshot, in: contexts, using: metaInfo)
         } catch {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
@@ -194,64 +170,40 @@ open class BaseSnapshotTestCase: XCTestCase {
         line: UInt = #line
     ) {
         do {
-            for interfaceStyle in interfaceStyles {
-                let metaInfo = try metaInfo(
-                    identifier: identifier,
-                    with: interfaceStyle,
-                    pixelTolerance: pixelToleracne,
-                    overallTolerance: overallTolerance
-                )
-                
-                let window = try window()
-                let context = SnapshotRendererContext.NavigationViewController(
-                    interfaceStyle: interfaceStyle,
-                    backgroundColor: backgroundColor,
-                    window: window
-                )
-                
-                if recordMode {
-                    try record(navigationViewController, renderContext: context, using: metaInfo)
-                } else {
-                    try verify(navigationViewController, renderContext: context, using: metaInfo)
-                }
-            }
+            // given
+            let metaInfo = try metaInfoProvider.makeMetaInfo(
+                identifier: identifier,
+                pixelTolerance: pixelToleracne,
+                overallTolerance: overallTolerance,
+                screenScale: window.screen.scale
+            )
+            
+            let snapshot = NavigationBarSnapshot(with: navigationViewController, in: window)
+            let contexts = interfaceStyles.map { SnapshotRenderContext(interfaceStyle: $0, backgroundColor: backgroundColor) }
+            
+            try verify(snapshot, in: contexts, using: metaInfo)
         } catch {
             XCTFail(error.localizedDescription, file: file, line: line)
         }
     }
-}
-
-// MARK: - Private
-
-private extension BaseSnapshotTestCase {
-
-    func metaInfo(
-        identifier: String?,
-        with interfaceStyle: UIUserInterfaceStyle,
-        pixelTolerance: CGFloat,
-        overallTolerance: CGFloat
-    ) throws -> SnapshotTestCaseMetaInfo {
-        guard let rootPath = ProcessInfo.processInfo.environment["SOURCE_ROOT"] else {
-            throw SnapshotBaseError.sourceRootNotFound
+    
+    // MARK: - Private
+    
+    private func verify(
+        _ snapshot: Snapshot,
+        in contexts: [SnapshotRenderContext],
+        using metaInfo: SnapshotMetaInfo
+    ) throws {
+        try snapshot.setUp()
+        defer { snapshot.tearDown() }
+        
+        if recordMode {
+            try snapshot.record(in: contexts, using: metaInfo)
+            throw SnapshotBaseError.ranInRecordMode
+        } else {
+            guard try snapshot.verify(in: contexts, using: metaInfo) else {
+                throw SnapshotBaseError.comparisonError
+            }
         }
-        
-        let testClass: AnyClass = self.classForCoder
-        
-        guard let invocationSelector = self.invocation?.selector else {
-            throw SnapshotBaseError.invocationSelectorNotFound
-        }
-
-        let screenScale = try window().screen.scale
-        
-        return SnapshotTestCaseMetaInfo(
-            identifier: identifier,
-            rootPath: rootPath,
-            testClass: testClass,
-            invocationSelector: invocationSelector,
-            screenScale: screenScale,
-            interfaceStyle: interfaceStyle,
-            pixelTolerance: pixelTolerance,
-            overallTolerance: overallTolerance
-        )
     }
 }
